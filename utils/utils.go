@@ -10,10 +10,10 @@ import (
 	"github.com/OliveiraJ/clinic-api/model"
 )
 
-const PATH string = "./static/rules.json"
+const PATH string = "./database/rules.json"
 
 // Reads the rules.json file and returns all the data from it to a map of type [string]model.Rule, the exists function is called so it can be verified
-// if the rules.json file exists, if it doesnt, the function will create a new one in the following path ./statis/rules.json
+// if the rules.json file exists, if it doesnt, the function will create a new one in the following path ./database/rules.json
 func ReadJson(pathFileJson string) map[string]model.Rule {
 	if !exists(pathFileJson) {
 		jsonFile, err := os.Create(pathFileJson)

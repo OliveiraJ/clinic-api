@@ -169,7 +169,7 @@ func UpdateRule(w http.ResponseWriter, r *http.Request) {
 					if interval == ruleInterval {
 						log.Println("horário já existe")
 
-						x.Intervals = append(x.Intervals[:i], rule.Intervals[i+1:]...)
+						rule.Intervals = append(rule.Intervals[:i], rule.Intervals[i+1:]...)
 					}
 				}
 			}
