@@ -16,7 +16,7 @@ func InitializeRoutes() {
 
 	router.HandleFunc("/rule", CreateRule).Methods("POST")
 	router.HandleFunc("/rule/dayly", CreateDaylyRule).Methods("POST")
-	router.HandleFunc("/rule/weekly", CreateWeeklyRule).Methods("POST")
+	router.HandleFunc("/rule/weekly", CreateWeeklyRule).Methods("POST", "PUT")
 	router.HandleFunc("/rule/{key}", DeleteRule).Methods("DELETE")
 	router.HandleFunc("/rule/{key}", UpdateRule).Methods("PUT")
 	router.HandleFunc("/rule/{key}", GetRule).Methods("GET")
@@ -81,7 +81,7 @@ func CreateWeeklyRule(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// Return everyu rule present on the json file
+// Return every rule present on the json file
 func GetRules(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	rules := utils.ReadJson(utils.PATH)
@@ -162,18 +162,7 @@ func UpdateRule(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&rule)
 
 	if x, found := rules[params["key"]]; found {
-
-		for _, v := range rules {
-			for _, interval := range v.Intervals {
-				for i, ruleInterval := range rule.Intervals {
-					if interval == ruleInterval {
-						log.Println("horário já existe")
-
-						rule.Intervals = append(rule.Intervals[:i], rule.Intervals[i+1:]...)
-					}
-				}
-			}
-		}
+		rule = utils.CheckSchedule(x, rule)
 		x.Intervals = append(x.Intervals, rule.Intervals...)
 		rules[params["key"]] = x
 	} else {

@@ -74,23 +74,67 @@ func Dayly(rules map[string]model.Rule, rule model.Rule) map[string]model.Rule {
 	return rules
 }
 
-// Makes the received rule a weekly rule, propagating it to every week within the received interval, returns a map of type [string]model.Rule
+// Weekly transforms the received rule in a weekly rule, propagating it to every week within the received interval, returns a map of type [string]model.Rule
 func Weekly(rules map[string]model.Rule, rule model.Rule) map[string]model.Rule {
 	limit := time.Time(rule.Limit)
 	start := time.Time(rule.Day)
 	days := limit.Sub(start).Hours() / (24 * 7)
-	log.Println(days)
 
-	rule.Day = model.CustomDay(start)
-	rules[start.Format(model.DAY)] = rule
+	if v, found := rules[start.Format(model.DAY)]; found {
+
+		rule = CheckSchedule(v, rule)
+
+		if len(rule.Intervals) != 0 {
+
+			v.Intervals = append(v.Intervals, rule.Intervals...)
+			rules[start.Format(model.DAY)] = v
+		}
+
+	} else {
+
+		rule.Day = model.CustomDay(start)
+		log.Println(time.Time(rule.Day))
+		rules[start.Format(model.DAY)] = rule
+		log.Println("novo criado")
+
+	}
 
 	for i := 0; i < int(days); i++ {
-		day := time.Time(rule.Day).AddDate(0, 0, 7)
-		log.Println(day)
-		rule.Day = model.CustomDay(day)
 
-		rules[time.Time(rule.Day).Format(model.DAY)] = rule
+		day := time.Time(rule.Day).AddDate(0, 0, 7)
+
+		if v, found := rules[day.Format(model.DAY)]; found {
+
+			rule = CheckSchedule(v, rule)
+			v.Intervals = append(v.Intervals, rule.Intervals...)
+			rules[time.Time(rule.Day).Format(model.DAY)] = v
+
+		} else {
+
+			log.Println(day)
+			rule.Day = model.CustomDay(day)
+
+			rules[time.Time(rule.Day).Format(model.DAY)] = rule
+
+		}
 	}
 
 	return rules
+}
+
+// Checks if there are any existing rules, preventing duplicate rules from being added as those are removed from the slice rule.Intervals.
+func CheckSchedule(x model.Rule, rule model.Rule) model.Rule {
+
+	for _, interval := range x.Intervals {
+		for i, ruleInterval := range rule.Intervals {
+			if interval == ruleInterval {
+				log.Println("horário já existe")
+
+				rule.Intervals = append(rule.Intervals[:i], rule.Intervals[i+1:]...)
+				log.Println(rule.Intervals)
+			}
+		}
+	}
+
+	return rule
 }
