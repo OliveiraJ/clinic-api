@@ -63,78 +63,113 @@ func exists(fileName string) bool {
 }
 
 // Makes the received rule a dayly rule, propagating it to all the days within the received interval, returns a map of type [string]model.Rule
-func Dayly(rules map[string]model.Rule, rule model.Rule) map[string]model.Rule {
-	for rule.Day != rule.Limit {
-		day := time.Time(rule.Day).AddDate(0, 0, 1)
-		rule.Day = model.CustomDay(day)
-		key := time.Time(rule.Day).Format(model.DAY)
-		rules[key] = rule
-	}
+func Dayly(rules map[string]model.Rule, rule model.Rule) (map[string]model.Rule, bool) {
 
-	return rules
-}
-
-// Weekly transforms the received rule in a weekly rule, propagating it to every week within the received interval, returns a map of type [string]model.Rule
-func Weekly(rules map[string]model.Rule, rule model.Rule) map[string]model.Rule {
+	var check bool
 	limit := time.Time(rule.Limit)
 	start := time.Time(rule.Day)
-	days := limit.Sub(start).Hours() / (24 * 7)
+	days := limit.Sub(start).Hours() / (24)
 
-	if v, found := rules[start.Format(model.DAY)]; found {
+	day := time.Time(rule.Day)
 
-		rule = CheckSchedule(v, rule)
-
-		if len(rule.Intervals) != 0 {
-
-			v.Intervals = append(v.Intervals, rule.Intervals...)
-			rules[start.Format(model.DAY)] = v
-		}
-
-	} else {
-
-		rule.Day = model.CustomDay(start)
-		log.Println(time.Time(rule.Day))
-		rules[start.Format(model.DAY)] = rule
-		log.Println("novo criado")
-
-	}
-
-	for i := 0; i < int(days); i++ {
-
-		day := time.Time(rule.Day).AddDate(0, 0, 7)
-
-		if v, found := rules[day.Format(model.DAY)]; found {
-
-			rule = CheckSchedule(v, rule)
-			v.Intervals = append(v.Intervals, rule.Intervals...)
-			rules[time.Time(rule.Day).Format(model.DAY)] = v
-
+	for i := 0; i < int(days)+1; i++ {
+		log.Println(i, time.Time(rule.Day))
+		if foundRule, found := rules[day.Format(model.DAY)]; found {
+			check = CheckInvalidSchedule(foundRule, rule)
+			if check {
+				return rules, check
+			}
+			check = CheckOverlapingIntervals(foundRule, rule)
+			if check {
+				return rules, check
+			}
+			foundRule.Intervals = append(foundRule.Intervals, rule.Intervals...)
+			rules[day.Format(model.DAY)] = foundRule
 		} else {
-
 			log.Println(day)
 			rule.Day = model.CustomDay(day)
 
 			rules[time.Time(rule.Day).Format(model.DAY)] = rule
-
 		}
+		day = day.AddDate(0, 0, 1)
+		log.Println("Imprimindo o day: ", day)
 	}
 
-	return rules
+	return rules, false
+}
+
+// Weekly transforms the received rule in a weekly rule, propagating it to every week within the received interval, returns a map of type [string]model.Rule
+func Weekly(rules map[string]model.Rule, rule model.Rule) (map[string]model.Rule, bool) {
+	var exist bool
+	limit := time.Time(rule.Limit)
+	start := time.Time(rule.Day)
+	days := limit.Sub(start).Hours() / (24 * 7)
+
+	day := time.Time(rule.Day)
+
+	for i := 0; i < int(days)+1; i++ {
+		if v, found := rules[day.Format(model.DAY)]; found {
+			exist = CheckInvalidSchedule(v, rule)
+			if exist {
+				return rules, exist
+			}
+			v.Intervals = append(v.Intervals, rule.Intervals...)
+			rules[day.Format(model.DAY)] = v
+		} else {
+			log.Println(day)
+			rule.Day = model.CustomDay(day)
+
+			rules[day.Format(model.DAY)] = rule
+		}
+		day = day.AddDate(0, 0, 7)
+	}
+
+	return rules, false
 }
 
 // Checks if there are any existing rules, preventing duplicate rules from being added as those are removed from the slice rule.Intervals.
-func CheckSchedule(x model.Rule, rule model.Rule) model.Rule {
-
+func CheckInvalidSchedule(x model.Rule, rule model.Rule) bool {
 	for _, interval := range x.Intervals {
-		for i, ruleInterval := range rule.Intervals {
+		for _, ruleInterval := range rule.Intervals {
 			if interval == ruleInterval {
-				log.Println("horário já existe")
-
-				rule.Intervals = append(rule.Intervals[:i], rule.Intervals[i+1:]...)
-				log.Println(rule.Intervals)
+				log.Println("Schedule already reserved")
+				return true
 			}
 		}
 	}
 
-	return rule
+	return false
+}
+
+func CheckInvalidInterval(rule model.Rule) bool {
+	for _, interval := range rule.Intervals {
+		if time.Time(interval.End).Before(time.Time(interval.Start)) || time.Time(interval.End).Equal(time.Time(interval.Start)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func CheckInvalidDate(rule model.Rule) bool {
+	if time.Time(rule.Limit).Equal(time.Time(rule.Day)) {
+		return false
+	} else {
+		return true
+	}
+}
+
+func CheckOverlapingIntervals(x model.Rule, rule model.Rule) bool {
+	check := false
+	for _, new := range rule.Intervals {
+		for _, interval := range x.Intervals {
+			if (time.Time(new.Start).Before(time.Time(interval.Start)) && (time.Time(new.End).Before(time.Time(interval.Start)) || time.Time(new.End).Equal(time.Time(interval.Start)))) || ((time.Time(new.Start).After(time.Time(interval.End)) || time.Time(new.Start).Equal(time.Time(interval.End))) && (time.Time(new.End).After(time.Time(interval.End)))) {
+				check = false
+			} else {
+				check = true
+			}
+		}
+	}
+
+	return check
 }

@@ -7,29 +7,8 @@ import (
 	"time"
 )
 
-const DAY string = "02-01-2006"
-const HOUR string = "15:04"
-
 type CustomDay time.Time
 type CustomHour time.Time
-
-type Interval struct {
-	Start CustomHour `json:"start"`
-	End   CustomHour `json:"end"`
-}
-
-type Rule struct {
-	Day       CustomDay  `json:"day"`
-	Limit     CustomDay  `json:"limit"`
-	Intervals []Interval `json:"intervals"`
-}
-
-// A auxiliar struct to help filtering only the needed data to be sent to the client.
-type ExtRule struct {
-	Day       CustomDay  `json:"day"`
-	Limit     CustomDay  `json:"-"`
-	Intervals []Interval `json:"intervals"`
-}
 
 // Implements the MarshalJSON interface to the CustomDay type
 func (cd CustomDay) MarshalJSON() ([]byte, error) {
@@ -58,7 +37,7 @@ func (ch CustomHour) MarshalJSON() ([]byte, error) {
 	return []byte(ch.String()), nil
 }
 
-// Implements the String interface to the CustomHour type, allowing it to me encoded and decoded with a custom format defined by the HOUR const
+// Implements the String interface to the CustomHour type, allowing it to be encoded and decoded with a custom format defined by the HOUR const
 func (ch *CustomHour) String() string {
 	t := time.Time(*ch)
 	return fmt.Sprintf("%q", t.Format(HOUR))
