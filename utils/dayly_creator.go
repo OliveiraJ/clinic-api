@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"log"
 	"time"
 
 	"github.com/OliveiraJ/clinic-api/model"
@@ -18,7 +17,6 @@ func Dayly(rules map[string]model.Rule, rule model.Rule) (map[string]model.Rule,
 	day := time.Time(rule.Day)
 
 	for i := 0; i < int(days)+1; i++ {
-		log.Println(i, time.Time(rule.Day))
 		if foundRule, found := rules[day.Format(model.DAY)]; found {
 			check = CheckInvalidSchedule(foundRule, rule)
 			if check {
@@ -31,13 +29,11 @@ func Dayly(rules map[string]model.Rule, rule model.Rule) (map[string]model.Rule,
 			foundRule.Intervals = append(foundRule.Intervals, rule.Intervals...)
 			rules[day.Format(model.DAY)] = foundRule
 		} else {
-			log.Println(day)
 			rule.Day = model.CustomDay(day)
 
 			rules[time.Time(rule.Day).Format(model.DAY)] = rule
 		}
 		day = day.AddDate(0, 0, 1)
-		log.Println("Imprimindo o day: ", day)
 	}
 
 	return rules, false

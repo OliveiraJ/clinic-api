@@ -14,6 +14,10 @@ import (
 func InitializeRoutes() {
 	router := mux.NewRouter()
 
+	//router.HandleFunc("/clinicapi/v1/rule", AvailableDays).Methods("GET").Queries("start", "{start:[0-9]+[-]*}", "end", "{end:[0-9]+[-]*}")
+
+	router.HandleFunc("/clinicapi/v1/rule/{start}/{end}", AvailableDays).Methods("GET")
+
 	router.HandleFunc("/clinicapi/v1/rule", CreateRule).Methods("POST")
 	router.HandleFunc("/clinicapi/v1/rule/dayly", CreateDaylyRule).Methods("POST")
 	router.HandleFunc("/clinicapi/v1/rule/weekly", CreateWeeklyRule).Methods("POST")
@@ -22,7 +26,6 @@ func InitializeRoutes() {
 	router.HandleFunc("/clinicapi/v1/rule/{key}", UpdateRule).Methods("PUT")
 	router.HandleFunc("/clinicapi/v1/rules", GetRules).Methods("GET")
 	router.HandleFunc("/clinicapi/v1/rule/{key}", GetRule).Methods("GET")
-	router.HandleFunc("/clinicapi/v1/availabledays", AvailableDays).Methods("GET")
 
 	log.Println("Listening on port :9090")
 	log.Fatal(http.ListenAndServe(":9090", router))
@@ -207,7 +210,39 @@ func DeleteInterval(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rules)
 }
 
+// Returns a set of rules that fit a interval of days
 func AvailableDays(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(r)
+	//queryParams := r.URL.Query()
+	rules := utils.ReadJson(utils.PATH)
+	var extRules []model.ExtRule
+
+	start := params["start"]
+	end := params["end"]
+
+	if startRule, foundStart := rules[start]; foundStart {
+		if endRule, foundEnd := rules[end]; foundEnd {
+			day := time.Time(startRule.Day)
+			for (day.Equal(time.Time(startRule.Day)) || day.After(time.Time(startRule.Day))) && (day.Equal(time.Time(endRule.Day)) || day.Before(time.Time(endRule.Day))) {
+				if time.Time(rules[day.Format(model.DAY)].Day).Format(model.DAY) != "01-01-0001" {
+
+					extRules = append(extRules, model.ExtRule(rules[day.Format(model.DAY)]))
+
+				}
+				day = day.AddDate(0, 0, 1)
+			}
+
+			json.NewEncoder(w).Encode(extRules)
+			log.Println("Returning rules!")
+
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+	}
 
 }
 
