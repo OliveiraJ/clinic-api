@@ -22,13 +22,14 @@ func Dayly(rules map[string]model.Rule, rule model.Rule) (map[string]model.Rule,
 			if check {
 				return rules, check
 			}
-			check = CheckOverlapingIntervals(foundRule, rule)
+			check = CheckOverlappingIntervals(foundRule, rule)
 			if check {
 				return rules, check
 			}
 			foundRule.Intervals = append(foundRule.Intervals, rule.Intervals...)
 			rules[day.Format(model.DAY)] = foundRule
 		} else {
+
 			rule.Day = model.CustomDay(day)
 
 			rules[time.Time(rule.Day).Format(model.DAY)] = rule

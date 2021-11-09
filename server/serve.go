@@ -11,26 +11,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func InitializeRoutes() {
-	router := mux.NewRouter()
-
-	//router.HandleFunc("/clinicapi/v1/rule", AvailableDays).Methods("GET").Queries("start", "{start:[0-9]+[-]*}", "end", "{end:[0-9]+[-]*}")
-
-	router.HandleFunc("/clinicapi/v1/rule/{start}/{end}", AvailableDays).Methods("GET")
-
-	router.HandleFunc("/clinicapi/v1/rule", CreateRule).Methods("POST")
-	router.HandleFunc("/clinicapi/v1/rule/dayly", CreateDaylyRule).Methods("POST")
-	router.HandleFunc("/clinicapi/v1/rule/weekly", CreateWeeklyRule).Methods("POST")
-	router.HandleFunc("/clinicapi/v1/rule/{key}", DeleteRule).Methods("DELETE")
-	router.HandleFunc("/clinicapi/v1/rule/interval/{key}", DeleteInterval).Methods("DELETE")
-	router.HandleFunc("/clinicapi/v1/rule/{key}", UpdateRule).Methods("PUT")
-	router.HandleFunc("/clinicapi/v1/rules", GetRules).Methods("GET")
-	router.HandleFunc("/clinicapi/v1/rule/{key}", GetRule).Methods("GET")
-
-	log.Println("Listening on port :9090")
-	log.Fatal(http.ListenAndServe(":9090", router))
-}
-
 // Creates a rule and add new valid schedules to those that already exists
 func CreateRule(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -62,7 +42,7 @@ func CreateRule(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Error: Limite date and start date do not match"))
 
-		} else if utils.CheckOverlapingIntervals(v, rule) {
+		} else if utils.CheckOverlappingIntervals(v, rule) {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte("Error: Overlaping schedules"))
 		} else {
@@ -99,6 +79,9 @@ func CreateDaylyRule(w http.ResponseWriter, r *http.Request) {
 	} else if utils.CheckInvalidInterval(rule) {
 		w.WriteHeader(http.StatusConflict)
 		w.Write([]byte("Error: Interval Conflict"))
+	} else if utils.CheckInvalidDate(rule) {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte("Error: Invalid Date Interval (Equal values to day and limit or 'limit' preceds 'day')"))
 	} else {
 		w.WriteHeader(http.StatusCreated)
 		utils.WriteJson(rules, utils.PATH)
@@ -107,6 +90,10 @@ func CreateDaylyRule(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Creates a Weekly Rule based on the values of 'limit' and 'day', starting from the date represented by the 'day' variable
+// a new rule is created in each 7 days gap until it reach the closest date to 'limit'. As an example:
+// If day: 01-11-2021 and limit: 01-12-2021, then rules would be created on 01-11-2021, 08-11-2021, 15-11-2021, 22-11-2021 and
+// 29-11-2021, ending on the closest day to the limit date.
 func CreateWeeklyRule(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var invalidSchedule bool
@@ -123,7 +110,9 @@ func CreateWeeklyRule(w http.ResponseWriter, r *http.Request) {
 	} else if utils.CheckInvalidInterval(rule) {
 		w.WriteHeader(http.StatusConflict)
 		w.Write([]byte("Error: Interval Conflict"))
-
+	} else if utils.CheckInvalidDate(rule) {
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte("Error: Invalid Date Interval (Equal values to day and limit or 'limit' preceds 'day')"))
 	} else {
 		w.WriteHeader(http.StatusCreated)
 		utils.WriteJson(rules, utils.PATH)
@@ -133,7 +122,7 @@ func CreateWeeklyRule(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// Return every rule present on the json file
+// Return every rule present on the json file (database)
 func GetRules(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	rules := utils.ReadJson(utils.PATH)
@@ -148,6 +137,7 @@ func GetRules(w http.ResponseWriter, r *http.Request) {
 	log.Println("Returning all rules!")
 }
 
+// Returns a specific rule
 func GetRule(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
@@ -166,6 +156,7 @@ func GetRule(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Deletes a specific rule.
 func DeleteRule(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
@@ -183,6 +174,7 @@ func DeleteRule(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(rules)
 }
 
+// Deletes a interval or a schedule from an specific rule.
 func DeleteInterval(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
@@ -246,7 +238,7 @@ func AvailableDays(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// Pending system to avoid repeating schedules
+// Updates an specific schedule
 func UpdateRule(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
@@ -256,14 +248,22 @@ func UpdateRule(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&rule)
 
 	if x, found := rules[params["key"]]; found {
-		//rule,_ = utils.CheckSchedule(x, rule)
-		x.Intervals = append(x.Intervals, rule.Intervals...)
-		rules[params["key"]] = x
+		if utils.CheckInvalidInterval(rule) {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("Schedule already exists"))
+		} else if utils.CheckOverlappingIntervals(x, rule) {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("Overlaping schedule, try a diferent one"))
+		} else {
+			x.Intervals = append(x.Intervals, rule.Intervals...)
+			rules[params["key"]] = x
+
+			utils.WriteJson(rules, utils.PATH)
+			json.NewEncoder(w).Encode(rule)
+		}
 	} else {
 		log.Println("Rule not found!")
 		w.WriteHeader(http.StatusNotFound)
 	}
-	utils.WriteJson(rules, utils.PATH)
-	json.NewEncoder(w).Encode(rule)
 
 }
